@@ -9,15 +9,20 @@ let authSdk = null;
 let authIsRequired = false;
 let appCheck = null;
 let appCheckSdk = null;
+let authNotice = '';
+let requestPending = false;
+let maxPdfBytes = 12 * 1024 * 1024;
 
 function setToolsEnabled(enabled) {
-  document.querySelectorAll('.task-form input, .task-form textarea, .task-form button').forEach((element) => { element.disabled = !enabled; });
+  document.querySelectorAll('.task-form input, .task-form textarea, .task-form button').forEach((element) => { element.disabled = !enabled || requestPending; });
 }
 
 async function initializeAuth() {
   try {
     const response = await fetch('/api/config', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Configuration unavailable');
     const config = await response.json();
+    maxPdfBytes = config.maxPdfBytes || maxPdfBytes;
     authIsRequired = config.auth_mode === 'firebase';
     if (!authIsRequired) return;
     authPanel.hidden = false;
@@ -48,7 +53,18 @@ async function initializeAuth() {
     // App Check must be initialized before any Firebase service when Auth
     // enforcement is enabled, otherwise the first Auth requests can be rejected.
     auth = authApi.getAuth(app);
-    authApi.onAuthStateChanged(auth, (user) => {
+    authApi.onAuthStateChanged(auth, updateAuthState);
+  } catch (_) {
+    if (authPanel) {
+      authPanel.hidden = false;
+      authStatus.textContent = 'Secure sign-in could not be initialized. Document analysis is disabled; reload or contact the deployment owner.';
+    }
+    setToolsEnabled(false);
+  }
+}
+
+function updateAuthState(user) {
+      if (currentUser?.uid !== user?.uid) resultRegion.replaceChildren();
       currentUser = user;
       const verified = Boolean(user?.emailVerified);
       setToolsEnabled(verified);
@@ -61,25 +77,21 @@ async function initializeAuth() {
       document.querySelector('#auth-reset').hidden = Boolean(user);
       document.querySelector('#auth-sign-out').hidden = !user;
       document.querySelector('#auth-verify').hidden = !user || verified;
+      document.querySelector('#auth-refresh').hidden = !user || verified;
+      if (user) document.querySelector('#auth-password').value = '';
       authStatus.textContent = !user
-        ? 'Sign in with a verified email account. Each account has an hourly and daily analysis allowance.'
+        ? authNotice || 'Have an account? Sign in. New here? Enter your email and a password (8+ characters), create an account, verify the email link, then sign in.'
         : verified
           ? `Signed in as ${user.email}. Document analysis is enabled.`
-          : `Verify ${user.email} using the link we emailed you, then sign in again to enable document analysis.`;
-    });
-  } catch (_) {
-    if (authPanel) {
-      authPanel.hidden = false;
-      authStatus.textContent = 'Secure sign-in could not be initialized. Document analysis is disabled; reload or contact the deployment owner.';
-    }
-    setToolsEnabled(false);
-  }
+          : `Open the verification link emailed to ${user.email}, then choose “I've verified my email” below.`;
 }
 
 function authErrorMessage(error) {
   const messages = {
     'auth/email-already-in-use': 'An account already exists for this email. Try signing in.',
     'auth/invalid-credential': 'Email or password was not accepted.',
+    'auth/invalid-email': 'Enter a valid email address.',
+    'auth/internal-error': 'The sign-in service rejected this request. Reload the page and retry; if it persists, contact the deployment owner (auth/internal-error).',
     'auth/weak-password': 'Choose a password with at least 8 characters.',
     'auth/too-many-requests': 'Sign-in is temporarily blocked after repeated attempts. Try again later.',
     'auth/network-request-failed': 'The sign-in service could not be reached. Check your connection and try again.',
@@ -103,22 +115,35 @@ document.querySelector('#auth-form').addEventListener('submit', async (event) =>
   if (!auth || !authSdk) return;
   const email = document.querySelector('#auth-email').value.trim();
   const password = document.querySelector('#auth-password').value;
+  authNotice = '';
   try {
     await authSdk.signInWithEmailAndPassword(auth, email, password);
-  } catch (error) { authStatus.textContent = authErrorMessage(error); }
+  } catch (error) {
+    authNotice = authErrorMessage(error);
+    authStatus.textContent = authNotice;
+  }
 });
 
 document.querySelector('#auth-sign-up').addEventListener('click', async () => {
   if (!auth || !authSdk) return;
   const email = document.querySelector('#auth-email').value.trim();
   const password = document.querySelector('#auth-password').value;
-  if (!email || password.length < 8) { authStatus.textContent = 'Enter an email and a password with at least 8 characters.'; return; }
+  if (!document.querySelector('#auth-email').reportValidity()) return;
+  if (!email || password.length < 8) {
+    authNotice = 'Enter your email and choose a password with at least 8 characters to create an account.';
+    authStatus.textContent = authNotice;
+    return;
+  }
   try {
     const result = await authSdk.createUserWithEmailAndPassword(auth, email, password);
     await authSdk.sendEmailVerification(result.user);
-    authStatus.textContent = `We sent a verification link to ${email}. Open it, then sign in again.`;
+    authNotice = `We sent a verification link to ${email}. Open it, then return here and sign in.`;
     await authSdk.signOut(auth);
-  } catch (error) { authStatus.textContent = authErrorMessage(error); }
+    authStatus.textContent = authNotice;
+  } catch (error) {
+    authNotice = authErrorMessage(error);
+    authStatus.textContent = authNotice;
+  }
 });
 
 document.querySelector('#auth-reset').addEventListener('click', async () => {
@@ -140,7 +165,17 @@ document.querySelector('#auth-verify').addEventListener('click', async () => {
 });
 
 document.querySelector('#auth-sign-out').addEventListener('click', async () => {
+  authNotice = '';
   if (auth && authSdk) await authSdk.signOut(auth);
+});
+
+document.querySelector('#auth-refresh').addEventListener('click', async () => {
+  if (!currentUser || !authSdk) return;
+  try {
+    await authSdk.reload(currentUser);
+    await currentUser.getIdToken(true);
+    updateAuthState(currentUser);
+  } catch (error) { authStatus.textContent = authErrorMessage(error); }
 });
 
 initializeAuth();
@@ -260,31 +295,79 @@ function renderCompare(data) {
 }
 
 async function submit(form, button, endpoint, formData, render) {
+  if (requestPending) return;
+  requestPending = true;
+  const requestUser = currentUser?.uid;
+  setToolsEnabled(false);
+  resultRegion.setAttribute('aria-busy', 'true');
   resultRegion.replaceChildren(node('div', 'loading', 'Reading the document and preparing a source-grounded response…'));
   button.disabled = true;
   button.dataset.originalText = button.textContent;
   button.textContent = 'Working…';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 100000);
   try {
+    for (const value of formData.values()) {
+      if (!(value instanceof File)) continue;
+      if (value.size > maxPdfBytes) throw new Error(`Each PDF must be at most ${Math.floor(maxPdfBytes / 1024 / 1024)} MiB.`);
+      if (await value.slice(0, 5).text() !== '%PDF-') throw new Error('Choose a readable PDF file before continuing.');
+    }
     const headers = {};
     if (authIsRequired) {
       if (!currentUser || !currentUser.emailVerified) throw new Error('Sign in with a verified email account before analyzing a document.');
-      headers.Authorization = `Bearer ${await currentUser.getIdToken(true)}`;
+      headers.Authorization = `Bearer ${await currentUser.getIdToken()}`;
       if (appCheck && appCheckSdk) {
-        const attestation = await appCheckSdk.getToken(appCheck, true);
+        const attestation = await appCheckSdk.getToken(appCheck);
         headers['X-Firebase-AppCheck'] = attestation.token;
       }
     }
-    const response = await fetch(endpoint, { method: 'POST', headers, body: formData, credentials: 'same-origin' });
+    const response = await fetch(endpoint, { method: 'POST', headers, body: formData, credentials: 'same-origin', signal: controller.signal });
+    if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('The service could not respond in time. Try again shortly.');
     const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || 'The request could not be completed.');
+    if (!response.ok) {
+      if (response.status === 429) {
+        const seconds = Number(response.headers.get('retry-after'));
+        throw new Error(Number.isFinite(seconds) && seconds > 0 ? `Usage limit reached. Try again in about ${Math.ceil(seconds / 60)} minutes.` : 'Usage limit reached. Try again later.');
+      }
+      throw new Error(typeof data.detail === 'string' ? data.detail : 'Check your PDF and question, then try again.');
+    }
+    if (authIsRequired && currentUser?.uid !== requestUser) return;
     resultRegion.replaceChildren(render(data));
-    resultRegion.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    addExportControls();
+    resultRegion.setAttribute('aria-busy', 'false');
+    resultRegion.focus({ preventScroll: true });
+    resultRegion.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   } catch (error) {
-    resultRegion.replaceChildren(node('div', 'error', error.message || 'Something went wrong. Please try again.'));
+    if (authIsRequired && currentUser?.uid !== requestUser) return;
+    const message = node('div', 'error', error.name === 'AbortError' ? 'The request took too long. Please retry shortly. Usage may already have been counted.' : error.message || 'Something went wrong. Please try again.');
+    message.setAttribute('role', 'alert');
+    resultRegion.replaceChildren(message);
   } finally {
-    button.disabled = false;
+    clearTimeout(timer);
+    requestPending = false;
+    resultRegion.setAttribute('aria-busy', 'false');
+    setToolsEnabled(!authIsRequired || Boolean(currentUser?.emailVerified));
     button.textContent = button.dataset.originalText || 'Try again';
   }
+}
+
+function addExportControls() {
+  const card = resultRegion.querySelector('.result-card');
+  if (!card) return;
+  const actions = node('div', 'result-actions');
+  const save = node('button', 'secondary-button', 'Download summary and sources');
+  save.type = 'button';
+  save.addEventListener('click', () => {
+    const content = `ClearClause document information\nGenerated ${new Date().toISOString()}\n\n${card.innerText}\n\nInformation only. Check the original document and discuss decisions with a qualified legal professional.`;
+    const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'clearclause-summary.txt';
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  actions.append(save);
+  resultRegion.append(actions);
 }
 
 document.querySelector('#brief-form').addEventListener('submit', (event) => {

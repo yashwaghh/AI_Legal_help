@@ -4,6 +4,8 @@
 
 **Rubric:** The supplied screenshot lists Code Quality, Security, Efficiency, Testing, Accessibility, and Problem Statement Alignment. These are treated as scoring dimensions; the written request defines the task.
 
+**Latest implemented release (2026-09-26):** Revision `clearclause-api-00005-9wj` is live. It fixes Firebase's referrer conflict and Firestore quota serialization, reuses valid auth tokens/cached schemas, bounds browser requests, validates PDF signatures before upload, detects short contract changes, discloses partial analysis, and exports cited summaries/questions as text. Accessibility handling and CI/coverage gates were expanded. Evidence: 40 passing local tests and 80.33% Python statement coverage; successful Cloud Build; live HTTP checks and separate synthetic Vertex/Firestore diagnostics. Full authenticated browser acceptance and broader production gates remain open. `EVALUATION_UPDATE.md` is the current six-criterion release record; later planning sections preserve historical checkpoints.
+
 ## 1. Product proposal
 
 ClearClause is a document-centered legal information workspace for individuals, freelancers, and small organizations. Users upload an agreement, ask questions in plain language, understand key clauses, compare versions, prepare a checklist, and create questions for a legal professional. GenAI is a central capability: it classifies and explains clauses, answers questions over selected sources, describes meaningful changes, and turns cited findings into editable outputs.

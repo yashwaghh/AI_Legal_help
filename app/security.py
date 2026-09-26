@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
 import threading
@@ -40,6 +41,7 @@ MAX_REQUEST_BYTES = 2 * MAX_PDF_BYTES + 262_144
 HOURLY_UNITS = int(os.getenv("USER_HOURLY_UNITS", "8"))
 DAILY_UNITS = int(os.getenv("USER_DAILY_UNITS", "30"))
 PROTECTED_PATHS = {"/api/briefing": 1, "/api/answer": 1, "/api/compare": 2}
+logger = logging.getLogger(__name__)
 
 if APP_ENV == "production":
     if AUTH_MODE != "firebase":
@@ -190,7 +192,15 @@ def _consume_firestore(user_id: str, units: int) -> None:
         def update(tx):
             snapshot = ref.get(transaction=tx)
             record = snapshot.to_dict() or {}
-            events = [(int(item[0]), int(item[1])) for item in record.get("events", []) if int(item[0]) > now - 86400]
+            # Firestore forbids arrays directly nested in arrays. Store maps
+            # so the first quota reservation can actually commit in production.
+            events = [
+                (int(item["timestamp"]), int(item["units"]))
+                for item in record.get("events", [])
+                if int(item["timestamp"]) > now - 86400
+            ]
+            if any(cost < 1 for _, cost in events):
+                raise ValueError("Invalid quota event")
             hour_events = [(stamp, cost) for stamp, cost in events if stamp > now - 3600]
             hour_used = sum(cost for _, cost in hour_events)
             day_used = sum(cost for _, cost in events)
@@ -205,7 +215,7 @@ def _consume_firestore(user_id: str, units: int) -> None:
             tx.set(
                 ref,
                 {
-                    "events": [[stamp, cost] for stamp, cost in events],
+                    "events": [{"timestamp": stamp, "units": cost} for stamp, cost in events],
                     "expiresAt": datetime.fromtimestamp(now + 2 * 86400, tz=timezone.utc),
                 },
             )
@@ -214,6 +224,7 @@ def _consume_firestore(user_id: str, units: int) -> None:
     except QuotaExceeded:
         raise
     except Exception as exc:
+        logger.error("Quota reservation failed; exception_type=%s", type(exc).__name__)
         raise QuotaUnavailable("Quota service unavailable") from exc
 
 
@@ -237,7 +248,7 @@ def _response(start_response: Send, status: int, detail: str, headers: list[tupl
         (b"x-frame-options", b"DENY"),
         (b"x-permitted-cross-domain-policies", b"none"),
         (b"cross-origin-resource-policy", b"same-origin"),
-        (b"referrer-policy", b"no-referrer"),
+        (b"referrer-policy", b"strict-origin-when-cross-origin"),
         (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
         (
             b"content-security-policy",
@@ -357,7 +368,7 @@ class RequestSecurityMiddleware:
                         (b"x-frame-options", b"DENY"),
                         (b"x-permitted-cross-domain-policies", b"none"),
                         (b"cross-origin-resource-policy", b"same-origin"),
-                        (b"referrer-policy", b"no-referrer"),
+                        (b"referrer-policy", b"strict-origin-when-cross-origin"),
                         (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
                         (
                             b"content-security-policy",

@@ -4,7 +4,7 @@
 
 **Assumptions:** Four-week sprint; 4–6 person team; English-only pilot; one selected jurisdiction; authenticated users; synthetic or explicitly authorized test documents. Companion implementation plan is the architecture source of truth.
 
-**Status notice (2026-09-26):** Sections 1–14 preserve earlier planning and delivery snapshots; some statements there predate the live deployment. Section 15 below is the latest execution status and supersedes older “not deployed” or “not configured” statements.
+**Status notice (2026-09-26):** The latest release is revision `clearclause-api-00005-9wj`, deployed after successful Cloud Build `6b259e17-65fe-475c-819b-0e1f7d78099f`. All six rubric areas received implementation changes documented in `EVALUATION_UPDATE.md`. Local checks: 40 tests, 80.33% Python statement coverage, passing lint/format/JavaScript syntax. Public health and anonymous rejection pass; real authenticated browser upload remains pending. Historical sections below are superseded where they conflict with this status and the evaluation report.
 
 ## 1. Delivery rules
 

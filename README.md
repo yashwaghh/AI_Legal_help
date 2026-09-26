@@ -11,6 +11,7 @@ ClearClause is a GenAI legal-information assistant that turns a user-provided PD
 - Compare two versions using a deterministic text diff, then summarize relevant changes.
 - Check cited page numbers and quoted source text before showing AI findings.
 - Generate structured findings, obligations, risks, and next-step prompts for discussion with a legal professional.
+- Download the current summary, source quotations and questions as a text file.
 
 The browser sends PDFs to the ClearClause backend for extraction and analysis. The backend calls Gemini through Vertex AI using Google Cloud Application Default Credentials; Vertex credentials are never sent to the browser. The demo accepts text-based PDFs up to 12 MiB and 40 pages. It does not provide OCR for scanned documents.
 
@@ -48,12 +49,14 @@ Open http://127.0.0.1:8000. The example environment uses local development auth 
 
 ## Checks
 
+The latest improvement pass has 40 passing tests and 80.33% Python statement coverage, with a 75% CI floor. See [the evaluation update](EVALUATION_UPDATE.md) for changes across all six criteria and verification limits. GitHub Actions checks pushes to `main` and pull requests.
+
 Run the same code-quality and test commands used by the Cloud Build pipeline:
 
 ```powershell
 python -m ruff check app tests
 python -m ruff format --check app tests
-python -m pytest -q
+python -m pytest -q --cov=app --cov-report=term-missing --cov-fail-under=75
 python -m compileall -q app tests
 ```
 

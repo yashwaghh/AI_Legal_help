@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from difflib import SequenceMatcher
 from functools import lru_cache
@@ -16,6 +17,7 @@ MODEL = os.getenv("VERTEX_MODEL", "gemini-3.5-flash-lite")
 MAX_CONTEXT_CHARS = 72_000
 GENAI_ENABLED = os.getenv("GENAI_ENABLED", "true").lower() == "true"
 VERTEX_TIMEOUT_MS = int(os.getenv("VERTEX_TIMEOUT_MS", "45000"))
+logger = logging.getLogger(__name__)
 
 
 class InvalidModelOutput(RuntimeError):
@@ -63,13 +65,17 @@ def _generate(prompt: str, schema: dict, max_tokens: int = 1800) -> str:
     except json.JSONDecodeError as exc:
         candidates = getattr(response, "candidates", None) or []
         finish_reason = str(getattr(candidates[0], "finish_reason", "unknown")) if candidates else "unknown"
-        print(
-            f"ClearClause model returned invalid JSON; finish_reason={finish_reason}; line={exc.lineno}; column={exc.colno}"
+        logger.warning(
+            "Model returned invalid JSON; finish_reason=%s; line=%s; column=%s",
+            finish_reason,
+            exc.lineno,
+            exc.colno,
         )
         raise InvalidModelOutput("invalid_json") from exc
     return response.text
 
 
+@lru_cache(maxsize=3)
 def _schema(model: type) -> dict:
     raw = model.model_json_schema()
     definitions = raw.pop("$defs", {})
@@ -105,7 +111,7 @@ def _parse_structured(model: type, prompt: str, max_tokens: int = 1800):
     except ValidationError as exc:
         # Log only field paths/error types. Never log model output or source text.
         failures = [{"field": ".".join(map(str, item["loc"])), "type": item["type"]} for item in exc.errors()]
-        print(f"ClearClause model output validation failed: {json.dumps(failures[:12])}")
+        logger.warning("Model output validation failed; issues=%s", json.dumps(failures[:12]))
         raise InvalidModelOutput("schema_mismatch") from exc
 
 
@@ -119,6 +125,12 @@ def briefing(document: LegalDocument) -> BriefResponse:
             overview_citations=[],
             limitations=["Citation validation failed. Review the original document or try a clearer PDF."],
         )
+    if len(document.extracted_text) > MAX_CONTEXT_CHARS:
+        if parsed.status == "supported":
+            parsed.status = "partial"
+        parsed.limitations = [
+            "Only the beginning of this long document was analyzed. Later clauses may be missing."
+        ] + parsed.limitations[:7]
     return parsed
 
 
@@ -131,19 +143,25 @@ def answer_question(document: LegalDocument, question: str) -> AnswerResponse:
             answer="I could not verify the quotation against the extracted text, so I cannot support an answer from this document.",
             uncertainties=["Citation validation failed. Check the original PDF or try a clearer copy."],
         )
+    if len(document.extracted_text) > MAX_CONTEXT_CHARS:
+        if parsed.status == "supported":
+            parsed.status = "partial"
+        parsed.uncertainties = [
+            "Only the beginning of this long document was analyzed. Check later pages for additional terms."
+        ] + parsed.uncertainties[:7]
     return parsed
 
 
 def _paragraphs(document: LegalDocument) -> list[tuple[int, str]]:
     paragraphs = []
     for page in document.pages:
-        paragraphs.extend((page.page, p.strip()) for p in page.text.splitlines() if len(p.strip()) >= 25)
+        paragraphs.extend((page.page, p.strip()) for p in page.text.splitlines() if p.strip())
     return paragraphs
 
 
 def _diff_excerpt(before: LegalDocument, after: LegalDocument, limit: int = 18) -> list[dict]:
     left, right = _paragraphs(before), _paragraphs(after)
-    matcher = SequenceMatcher(a=[p.casefold() for _, p in left], b=[p.casefold() for _, p in right], autojunk=False)
+    matcher = SequenceMatcher(a=[p for _, p in left], b=[p for _, p in right], autojunk=True)
     changes = []
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
@@ -165,7 +183,9 @@ def _diff_excerpt(before: LegalDocument, after: LegalDocument, limit: int = 18) 
 
 
 def compare_documents(before: LegalDocument, after: LegalDocument, lens: str) -> CompareResponse:
-    diff = _diff_excerpt(before, after)
+    diff = _diff_excerpt(before, after, limit=19)
+    limited = len(diff) > 18 or any(len(doc.extracted_text) > MAX_CONTEXT_CHARS // 2 for doc in (before, after))
+    diff = diff[:18]
     if not diff:
         return CompareResponse(
             status="supported",
@@ -182,5 +202,12 @@ def compare_documents(before: LegalDocument, after: LegalDocument, lens: str) ->
             verify_with_professional=[
                 "Compare the original pages directly or provide clearer text-based PDF versions."
             ],
+        )
+    if limited:
+        if parsed.status == "supported":
+            parsed.status = "partial"
+        parsed.overall_note = (
+            parsed.overall_note[:950]
+            + " This comparison uses bounded excerpts and may omit later changes. Review both originals for completeness."
         )
     return parsed

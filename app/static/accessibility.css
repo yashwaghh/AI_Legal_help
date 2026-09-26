@@ -1,0 +1,26 @@
+/* Readability and focus states for the document and authentication workflows. */
+.eyebrow, .tab, .tab span, .step-index, .optional,
+.file-text span, .footer, .change-type { color: #4b6056; }
+textarea::placeholder, input::placeholder { color: #637068; }
+.result-copy, .finding p, .result-list, .change-side,
+.citation, .file-text span, .notice, .auth-panel p:not(.eyebrow) {
+  font-size: .875rem;
+}
+.text-button, .tab, .choose-button, .secondary-button { min-height: 44px; }
+button:disabled { cursor: not-allowed; }
+a:focus-visible, button:focus-visible, input:focus-visible,
+textarea:focus-visible, .result-region:focus-visible {
+  outline: 3px solid #174538;
+  outline-offset: 3px;
+}
+.file-drop:has(+ input:focus-visible) { outline: 3px solid #174538; outline-offset: 3px; }
+.result-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0; }
+.result-card, .auth-panel { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}
+@media (max-width: 400px) {
+  .topbar { height: auto; min-height: 74px; flex-wrap: wrap; gap: .5rem; padding-top: .75rem; padding-bottom: .75rem; }
+  .result-header { flex-wrap: wrap; }
+  .status-pill { margin-left: 0; }
+}

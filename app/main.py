@@ -1,3 +1,4 @@
+import logging
 import os
 from dataclasses import replace
 from pathlib import Path
@@ -34,11 +35,13 @@ app = FastAPI(
 )
 app.add_middleware(RequestSecurityMiddleware)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+logger = logging.getLogger(__name__)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def home():
-    return (BASE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
+def home() -> HTMLResponse:
+    content = (BASE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(content=content, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/health", include_in_schema=False)
@@ -62,6 +65,7 @@ def public_config():
         },
         "appCheckRequired": APP_CHECK_REQUIRED,
         "appCheckSiteKey": APP_CHECK_SITE_KEY,
+        "maxPdfBytes": MAX_PDF_BYTES,
     }
 
 
@@ -78,7 +82,7 @@ def _read_pdf(upload: UploadFile):
 def _model_error(exc: Exception):
     # Do not return provider diagnostics, request contents, or credentials to the browser.
     code = getattr(exc, "code", None)
-    print(f"ClearClause provider error: {type(exc).__name__}; code={code}")
+    logger.error("Vertex request failed; exception_type=%s; provider_code=%s", type(exc).__name__, code)
     if code in (401, 403):
         detail = (
             "Vertex AI authorization failed. Check that the active Google account can call Vertex AI in this project."
@@ -145,8 +149,8 @@ def compare(
     before = _read_pdf(before_file)
     after = _read_pdf(after_file)
     if before.label == after.label:
-        before = replace(before, label="Version 1 — " + before.label)
-        after = replace(after, label="Version 2 — " + after.label)
+        before = replace(before, label="Version 1 - " + before.label[:68])
+        after = replace(after, label="Version 2 - " + after.label[:68])
     try:
         return compare_documents(before, after, lens.strip())
     except InvalidModelOutput as exc:

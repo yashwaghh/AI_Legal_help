@@ -6,6 +6,12 @@
 
 ## Executive summary
 
+### Latest release evidence (2026-09-26)
+
+Revision `clearclause-api-00005-9wj` serves 100% of traffic following successful Cloud Build `6b259e17-65fe-475c-819b-0e1f7d78099f`. The release repairs the confirmed Firebase referrer-policy conflict and Firestore nested-array quota defect. It adds cached valid tokens/schemas, PDF preflight, bounded browser requests, accessible result handling, downloadable summaries and sources, and short-change detection. The six-criterion evidence and limitations are in `EVALUATION_UPDATE.md`; earlier sections below are historical checkpoints where they differ.
+
+Local verification: 40 tests pass with 80.33% Python statement coverage; lint, format and JavaScript syntax pass. Cloud Build ran its test/coverage gate before image creation. Live homepage/config/assets return 200, health is `ok`, and unauthenticated analysis returns 401. The sign-in panel initializes without observed warning/error logs; the current narrow browser viewport has no horizontal overflow. Separate developer-ADC checks validated synthetic briefing/Q&A/comparison and Firestore transactions. A complete authenticated browser upload remains pending.
+
 ClearClause’s Vertex AI calls stay on the backend and use Application Default Credentials. Browser users never receive a Vertex key or service-account credential. The online request path now requires a verified Firebase Authentication account and App Check token, reserves per-user quota in a Firestore transaction before parsing an upload, and fails closed if authentication or quota protection is unavailable. Briefing and Q&A cost one quota unit; comparison costs two. Default caps are 8 units per rolling hour and 30 units per rolling 24 hours per account.
 
 Additional safeguards include request-body limits before multipart parsing, existing per-PDF/page/text caps, CSP and other security headers, no-store API responses, a Vertex timeout, a one-switch GenAI shutdown, bounded Cloud Run scale/concurrency in a deployment template, and a `.dockerignore` that excludes local credentials and the virtual environment from the build context.
@@ -15,7 +21,7 @@ This project is deployed to Cloud Run as a limited online demo, not as a product
 ## Request and trust flow
 
 1. The browser signs in through Firebase Authentication. The account must have a verified email.
-2. For analysis, the browser refreshes its Firebase ID token and requests a Firebase App Check token using reCAPTCHA Enterprise.
+2. For analysis, the browser obtains a valid Firebase ID token and Firebase App Check token using reCAPTCHA Enterprise, reusing valid SDK-cached tokens when available.
 3. ASGI middleware checks the request size and content type before FastAPI reads a multipart body. It verifies both tokens before letting an analysis request continue.
 4. A Firestore transaction reserves weighted usage against the account’s rolling one-hour and 24-hour totals. Firestore stores timestamps and unit counts under a SHA-256-derived document key, not the Firebase UID or document content. If Firestore is unavailable, the app returns a temporary error without calling Vertex AI.
 5. FastAPI reads each PDF within the existing byte, page, and extracted-text limits. PyMuPDF extracts text and page numbers in request memory/temp-file scope.

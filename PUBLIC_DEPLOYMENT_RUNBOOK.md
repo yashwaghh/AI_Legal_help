@@ -7,20 +7,20 @@
 | Item | Current state |
 |---|---|
 | Public URL | [https://clearclause-api-ye2sfsdqnq-uc.a.run.app](https://clearclause-api-ye2sfsdqnq-uc.a.run.app) |
-| Cloud Run | `clearclause-api`, `us-central1`, revision `clearclause-api-00003-c9n`, public `run.app` ingress |
+| Cloud Run | `clearclause-api`, `us-central1`, revision `clearclause-api-00005-9wj`, public `run.app` ingress |
 | Model | Gemini 3.5 Flash-Lite on Vertex `us` multi-region endpoint |
 | Database | Firestore Native `(default)`, `us-central1`, delete protection enabled; quota TTL `ACTIVE` |
 | Identity | Firebase email/password enabled; analysis requires verified email; Firebase Auth App Check enforcement enabled |
 | Abuse controls | reCAPTCHA Enterprise App Check (site key restricted to deployed hostname), backend token verification, Firestore rolling per-user quota (8 hourly/30 daily weighted units) |
 | Cloud Run limits | 0 minimum / 3 maximum instances, concurrency 4, 1 vCPU, 1 GiB RAM |
 | Runtime identity | `clearclause-runtime@ai-legal-help.iam.gserviceaccount.com`, roles `aiplatform.user` and `datastore.user` only |
-| Artifact | `us-central1-docker.pkg.dev/ai-legal-help/clearclause/clearclause-api@sha256:4c1220f16fc4053c0cf9127e5c7c360e8717852e6213e48bfb3180f7bc46e5a4` |
+| Artifact | `us-central1-docker.pkg.dev/ai-legal-help/clearclause/clearclause-api@sha256:3da3918b1362e40e818044d31dcbd17461be7f69b10d9c5ca36b82c5e871bbba` |
 | Smoke check | `/` returned 200; `/api/health` returned `ok`; `/api/config` confirms production Firebase/App Check config |
 | Residual risk | No Cloud Armor or IP-level edge throttling; user accepted this temporary route. Keep a small pilot and synthetic/authorized PDFs until privacy/provider/legal review is complete. |
 
-The user previously saw a generic sign-in error. Revision `clearclause-api-00003-c9n` corrects the client order so App Check initializes before Auth and exposes a sanitized Firebase error code if an unmapped failure remains. Health/config checks do not prove the sign-in success path; a fresh browser sign-in and synthetic-document flow still need confirmation.
+The current revision also fixes a confirmed Firebase referrer-policy conflict and invalid Firestore quota serialization. The restricted browser key requires the allowed origin, so responses now use `strict-origin-when-cross-origin`. Quota events use map records instead of unsupported nested arrays. Health/config checks do not prove the sign-in success path; a fresh browser sign-in and synthetic-document flow still need confirmation.
 
-The Firebase Web API key and reCAPTCHA site key are public client values, constrained to the deployed host and required APIs; neither grants Vertex access. Vertex uses the Cloud Run service account and ADC. No service-account key was created. No model generation, user signup, automated test suite, or abuse test was run during deployment. The image was built with a Docker-only Cloud Build command, not `cloudbuild.yaml`'s test steps.
+The Firebase Web API key and reCAPTCHA site key are public client values, constrained to the deployed host and required APIs; neither grants Vertex access. Vertex uses the Cloud Run service account and ADC. No service-account key was created. Cloud Build `6b259e17-65fe-475c-819b-0e1f7d78099f` passed the configured lint, format, coverage, test and image-build steps before this deployment. Local evidence: 40 tests, 80.33% Python statement coverage. Live developer-ADC diagnostics passed all three synthetic Vertex workflows and Firestore quota writes; they are distinct from authenticated browser acceptance. See `EVALUATION_UPDATE.md` for scope and remaining gates.
 
 ## Pre-provisioning baseline — 2026-09-26
 

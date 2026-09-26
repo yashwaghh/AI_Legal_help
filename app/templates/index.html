@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f6f7f4">
   <title>ClearClause — Understand the words that matter</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/accessibility.css">
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -24,7 +26,7 @@
     </section>
 
     <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title" hidden>
-      <div class="auth-copy"><p class="eyebrow">SECURE ACCESS</p><h2 id="auth-title">Sign in to continue.</h2><p id="auth-status" role="status" aria-live="polite">Use a verified account to protect your documents and your analysis quota.</p></div>
+      <div class="auth-copy"><p class="eyebrow">SECURE ACCESS</p><h2 id="auth-title">Sign in to continue.</h2><p id="auth-status" role="status" aria-live="polite">Have an account? Sign in. New here? Create one with your email, verify the email link, then sign in.</p></div>
       <form id="auth-form" class="auth-form">
         <label class="field-label" for="auth-email">Email address</label>
         <input id="auth-email" type="email" autocomplete="email" maxlength="254" required>
@@ -36,6 +38,7 @@
         </div>
         <button class="text-button" id="auth-reset" type="button">Reset password</button>
         <button class="secondary-button" id="auth-verify" type="button" hidden>Resend verification email</button>
+        <button class="secondary-button" id="auth-refresh" type="button" hidden>I've verified my email</button>
         <button class="text-button" id="auth-sign-out" type="button" hidden>Sign out</button>
       </form>
     </section>
@@ -85,7 +88,7 @@
       </section>
     </section>
 
-    <section id="result-region" class="result-region" aria-live="polite" aria-atomic="false" aria-label="Analysis result"></section>
+    <section id="result-region" class="result-region" tabindex="-1" aria-live="polite" aria-atomic="false" aria-busy="false" aria-label="Analysis result"></section>
 
     <footer class="footer"><span>ClearClause · Early prototype</span><span>Source first. Plain language. Room for questions.</span></footer>
   </main>

@@ -2,6 +2,7 @@ import asyncio
 import os
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -86,6 +87,23 @@ def test_large_content_length_is_rejected_before_downstream_parser(monkeypatch):
     )
     assert response_status(sent) == 413
     assert not downstream.called
+
+
+def test_chunked_body_limit_stops_reading_when_content_length_is_missing(monkeypatch):
+    monkeypatch.setattr(security, "AUTH_MODE", "development")
+    monkeypatch.setattr(security, "MAX_REQUEST_BYTES", 10)
+
+    class ReaderApp:
+        async def __call__(self, scope, receive, send):
+            await receive()
+
+    _, sent = request(
+        security.RequestSecurityMiddleware(ReaderApp()),
+        headers={"content-type": "multipart/form-data; boundary=x"},
+        body=b"x" * 11,
+    )
+
+    assert response_status(sent) == 413
 
 
 def test_firebase_mode_rejects_missing_authorization_before_body_read(monkeypatch):
@@ -182,3 +200,91 @@ def test_app_check_is_bound_to_the_configured_firebase_app(monkeypatch):
     monkeypatch.setattr(app_check, "verify_token", lambda token, app: {"sub": "1:123:ios:other-app"})
     with pytest.raises(security.AuthenticationError):
         security.verify_app_check_token("other-app-token")
+
+
+def test_firestore_quota_round_trip_uses_supported_types_and_enforces_weights(monkeypatch):
+    from google.cloud import firestore_v1
+
+    stored = {}
+
+    class Reference:
+        def get(self, transaction):
+            return SimpleNamespace(to_dict=lambda: stored.copy())
+
+    class Transaction:
+        def set(self, ref, record):
+            # Mirror the real Firestore restriction, not just a mocked success.
+            assert all(isinstance(item, dict) for item in record["events"])
+            stored.update(record)
+
+    reference = Reference()
+    client = SimpleNamespace(
+        collection=lambda name: SimpleNamespace(document=lambda digest: reference),
+        transaction=Transaction,
+    )
+    monkeypatch.setattr(security, "_firestore_client", client)
+    monkeypatch.setattr(firestore_v1, "transactional", lambda fn: fn)
+    monkeypatch.setattr(security, "HOURLY_UNITS", 3)
+    monkeypatch.setattr(security, "DAILY_UNITS", 4)
+    monkeypatch.setattr(security.time, "time", lambda: 100_000)
+
+    security._consume_firestore("synthetic-user", 2)
+    security._consume_firestore("synthetic-user", 1)
+    with pytest.raises(security.QuotaExceeded) as limit:
+        security._consume_firestore("synthetic-user", 1)
+    assert limit.value.retry_after == 3600
+    assert len(stored["events"]) == 2
+    assert stored["expiresAt"].timestamp() == 272800
+
+    monkeypatch.setattr(security.time, "time", lambda: 103_601)
+    with pytest.raises(security.QuotaExceeded):
+        security._consume_firestore("synthetic-user", 2)
+    security._consume_firestore("synthetic-user", 1)
+    monkeypatch.setattr(security.time, "time", lambda: 200_000)
+    security._consume_firestore("synthetic-user", 2)
+    assert len(stored["events"]) == 1
+
+
+def test_missing_app_check_blocks_request_before_quota(monkeypatch):
+    monkeypatch.setattr(security, "AUTH_MODE", "firebase")
+    monkeypatch.setattr(security, "APP_CHECK_REQUIRED", True)
+    monkeypatch.setattr(security, "verify_firebase_token", lambda token: {"uid": "synthetic-user"})
+    calls = []
+    monkeypatch.setattr(security, "consume_quota", lambda *args: calls.append(args))
+    downstream = DummyApp()
+    _, sent = request(
+        security.RequestSecurityMiddleware(downstream),
+        headers={
+            "content-type": "multipart/form-data; boundary=x",
+            "authorization": "Bearer " + "x" * 30,
+        },
+    )
+    assert response_status(sent) == 401
+    assert not calls
+    assert not downstream.called
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"aud": "another-project"},
+        {"iss": "https://example.invalid"},
+        {"email_verified": False},
+        {"uid": ""},
+    ],
+)
+def test_identity_rejects_wrong_project_unverified_or_missing_uid(monkeypatch, override):
+    from firebase_admin import auth
+
+    claims = {
+        "aud": "test-project",
+        "iss": "https://securetoken.google.com/test-project",
+        "uid": "synthetic-user",
+        "email_verified": True,
+    }
+    claims.update(override)
+    monkeypatch.setattr(security, "FIREBASE_PROJECT_ID", "test-project")
+    monkeypatch.setattr(security, "_firebase_admin", lambda: object())
+    monkeypatch.setattr(auth, "verify_id_token", lambda *args, **kwargs: claims)
+    with pytest.raises(security.AuthenticationError):
+        security.verify_firebase_token("synthetic-token")
