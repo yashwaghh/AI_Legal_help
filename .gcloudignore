@@ -1,0 +1,17 @@
+.gcloudignore
+.git/
+.gitignore
+.env
+.env.*
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+tests/
+*.md
+deployment/
+cloudrun-service*.yaml
+requirements-dev.txt

@@ -1,0 +1,21 @@
+steps:
+  - name: python:3.13-slim
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        python -m pip install --no-cache-dir -r requirements-dev.txt
+        python -m ruff check app tests
+        python -m ruff format --check app tests
+        python -m pytest -q
+        python -m compileall -q app tests
+  - name: gcr.io/cloud-builders/docker
+    # BUILD_ID is available for both manual source uploads and repository triggers.
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/clearclause-api:$BUILD_ID", "."]
+images:
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/clearclause-api:$BUILD_ID"
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: clearclause
+options:
+  logging: CLOUD_LOGGING_ONLY

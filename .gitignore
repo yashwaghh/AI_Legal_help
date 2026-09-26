@@ -1,0 +1,37 @@
+# Local environment configuration and credentials
+.env
+.env.*
+!.env.example
+.secrets/
+**/application_default_credentials.json
+**/*service-account*.json
+**/*service_account*.json
+*.pem
+*.key
+*.p12
+
+# Project-specific deployment snapshot (may contain live configuration)
+/cloudrun-service.yaml
+
+# Private working notes
+/context.md
+
+# Python environments, caches, and build outputs
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+
+# Local IDE and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

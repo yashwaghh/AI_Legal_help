@@ -1,0 +1,16 @@
+.env
+.env.*
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.git/
+tests/
+*.md
+cloudrun-service.yaml
+cloudrun-service.*.yaml
+*.production.yaml
+deployment/
+requirements-dev.txt

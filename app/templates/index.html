@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f7f4">
+  <title>ClearClause — Understand the words that matter</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="ClearClause home"><span class="brand-mark" aria-hidden="true">C</span><span>clear<span class="brand-light">clause</span></span></a>
+    <span class="local-badge"><span aria-hidden="true">●</span> Document information assistant</span>
+  </header>
+
+  <main id="main" class="shell">
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">LEGAL DOCUMENTS, MADE MORE LEGIBLE</p>
+      <h1 id="page-title">Understand the words<br>that <em>matter.</em></h1>
+      <p class="intro-copy">Bring a PDF. Get a plain-language briefing, ask questions grounded in its text, or see what changed between two versions.</p>
+      <div class="trust-note"><span aria-hidden="true">✳</span><p>Every explanation points back to the source. If the document doesn’t support an answer, ClearClause says so.</p></div>
+    </section>
+
+    <section id="auth-panel" class="auth-panel" aria-labelledby="auth-title" hidden>
+      <div class="auth-copy"><p class="eyebrow">SECURE ACCESS</p><h2 id="auth-title">Sign in to continue.</h2><p id="auth-status" role="status" aria-live="polite">Use a verified account to protect your documents and your analysis quota.</p></div>
+      <form id="auth-form" class="auth-form">
+        <label class="field-label" for="auth-email">Email address</label>
+        <input id="auth-email" type="email" autocomplete="email" maxlength="254" required>
+        <label class="field-label" for="auth-password">Password</label>
+        <input id="auth-password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required>
+        <div class="auth-actions">
+          <button class="primary-button" id="auth-sign-in" type="submit">Sign in</button>
+          <button class="secondary-button" id="auth-sign-up" type="button">Create account</button>
+        </div>
+        <button class="text-button" id="auth-reset" type="button">Reset password</button>
+        <button class="secondary-button" id="auth-verify" type="button" hidden>Resend verification email</button>
+        <button class="text-button" id="auth-sign-out" type="button" hidden>Sign out</button>
+      </form>
+    </section>
+
+    <div class="notice" role="note"><strong>Information, not legal advice.</strong> ClearClause can help you understand supplied text. It cannot assess your legal position or replace a qualified legal professional. Your PDF and extracted text are sent to Vertex AI for analysis. This prototype does not intentionally retain files, but uploads may temporarily spool to server memory or disk. Until the deployment owner publishes a reviewed privacy notice and retention terms, use synthetic or non-sensitive documents only.</div>
+
+    <section class="workbench" aria-label="Document tools">
+      <div class="tab-list" role="tablist" aria-label="Choose a document task">
+        <button id="tab-brief" class="tab active" role="tab" aria-selected="true" aria-controls="panel-brief" data-tab="brief">01 <span>Understand</span></button>
+        <button id="tab-ask" class="tab" role="tab" aria-selected="false" aria-controls="panel-ask" data-tab="ask">02 <span>Ask a question</span></button>
+        <button id="tab-compare" class="tab" role="tab" aria-selected="false" aria-controls="panel-compare" data-tab="compare">03 <span>Compare versions</span></button>
+      </div>
+
+      <section id="panel-brief" class="panel" role="tabpanel" aria-labelledby="tab-brief">
+        <div class="panel-heading"><div><p class="eyebrow">PLAIN-LANGUAGE BRIEFING</p><h2>Start with the essentials.</h2><p>Get a concise overview and key points with page-level citations.</p></div><span class="step-index">A</span></div>
+        <form id="brief-form" class="task-form">
+          <label class="file-drop" for="brief-file"><span class="file-icon" aria-hidden="true">↑</span><span class="file-text"><strong>Choose a legal PDF</strong><span id="brief-file-name">Text-based PDF · Up to 12 MiB / 40 pages</span></span><span class="choose-button">Browse</span></label>
+          <input id="brief-file" name="file" type="file" accept="application/pdf,.pdf" required class="visually-hidden">
+          <button class="primary-button" type="submit">Create my briefing <span aria-hidden="true">→</span></button>
+        </form>
+      </section>
+
+      <section id="panel-ask" class="panel" role="tabpanel" aria-labelledby="tab-ask" hidden>
+        <div class="panel-heading"><div><p class="eyebrow">DOCUMENT-GROUNDED Q&amp;A</p><h2>Find an answer in the text.</h2><p>ClearClause will cite the passage it uses, or tell you when it can’t find one.</p></div><span class="step-index">B</span></div>
+        <form id="ask-form" class="task-form">
+          <label class="field-label" for="question">What would you like to understand?</label>
+          <textarea id="question" name="question" rows="3" maxlength="1000" placeholder="For example: How can either party end this agreement?" required></textarea>
+          <label class="file-drop compact" for="ask-file"><span class="file-icon" aria-hidden="true">↑</span><span class="file-text"><strong>Choose the PDF to ask about</strong><span id="ask-file-name">Text-based PDF · Up to 12 MiB / 40 pages</span></span><span class="choose-button">Browse</span></label>
+          <input id="ask-file" name="file" type="file" accept="application/pdf,.pdf" required class="visually-hidden">
+          <button class="primary-button" type="submit">Ask about this document <span aria-hidden="true">→</span></button>
+        </form>
+      </section>
+
+      <section id="panel-compare" class="panel" role="tabpanel" aria-labelledby="tab-compare" hidden>
+        <div class="panel-heading"><div><p class="eyebrow">VERSION COMPARISON</p><h2>See what changed.</h2><p>Exact text changes are identified first; Gemini then explains them neutrally.</p></div><span class="step-index">C</span></div>
+        <form id="compare-form" class="task-form">
+          <div class="version-grid">
+            <label class="file-drop compact" for="before-file"><span class="file-icon version-one" aria-hidden="true">1</span><span class="file-text"><strong>Earlier version</strong><span id="before-file-name">Choose a PDF</span></span><span class="choose-button">Browse</span></label>
+            <input id="before-file" type="file" accept="application/pdf,.pdf" required class="visually-hidden">
+            <label class="file-drop compact" for="after-file"><span class="file-icon version-two" aria-hidden="true">2</span><span class="file-text"><strong>Later version</strong><span id="after-file-name">Choose a PDF</span></span><span class="choose-button">Browse</span></label>
+            <input id="after-file" type="file" accept="application/pdf,.pdf" required class="visually-hidden">
+          </div>
+          <label class="field-label" for="lens">What should the comparison focus on? <span class="optional">Optional</span></label>
+          <input id="lens" type="text" maxlength="160" placeholder="For example: payment, renewal, termination">
+          <button class="primary-button" type="submit">Compare the versions <span aria-hidden="true">→</span></button>
+        </form>
+      </section>
+    </section>
+
+    <section id="result-region" class="result-region" aria-live="polite" aria-atomic="false" aria-label="Analysis result"></section>
+
+    <footer class="footer"><span>ClearClause · Early prototype</span><span>Source first. Plain language. Room for questions.</span></footer>
+  </main>
+</body>
+</html>
